@@ -1,0 +1,35 @@
+name: ServerCrackerBot Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      ip:
+        description: 'Target Server IP'
+        required: true
+        default: '127.0.0.1'
+      port:
+        description: 'Target Server Port'
+        required: true
+        default: '25565'
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          pip install python-telegram-bot==20.7 colorama
+
+      - name: Run ServerCrackerBot
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: |
+          python bot_commander.py
