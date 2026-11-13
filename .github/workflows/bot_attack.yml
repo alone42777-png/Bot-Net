@@ -1,16 +1,10 @@
 name: ServerCrackerBot Runner
 
 on:
+  push:
+    branches: [ main ]
+  # لابردنی workflow_dispatch بە جۆرێک کە خۆکارانە یان بە تەنها داگیرساندن کار بکات
   workflow_dispatch:
-    inputs:
-      ip:
-        description: 'Target Server IP'
-        required: true
-        default: '127.0.0.1'
-      port:
-        description: 'Target Server Port'
-        required: true
-        default: '25565'
 
 jobs:
   run-bot:
