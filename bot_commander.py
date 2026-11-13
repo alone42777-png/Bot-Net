@@ -7,7 +7,8 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 TOKEN = os.getenv("BOT_TOKEN")
-OWNER_USERNAME = "ALONE427"  # یوسەرنەیمی ڕاستعینەی تۆ بێ @
+# خوێندنەوەی ئایدی خاوەن لە Secrets و گۆڕینی بۆ ژمارە
+OWNER_ID = int(os.getenv("OWNER_ID", "0"))
 
 user_states = {}
 attack_active = False
@@ -48,23 +49,22 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    user = query.from_user
-    username = user.username
+    user_id = query.from_user.id
 
     if query.data == "about_bot":
         about_text = (
             "💀 **دەربارەی ServerCrackerBot:**\n\n"
             "ئەم بۆتە چەکێکی پیشەگەرانە و پەرەپێدراوە بۆ فڵۆدکردن و ڕاگرتنی (Shutdown) سێرڤەرە گەورەکانی ماینکرافت (Java Edition).\n"
             "توانای ناردنی ملیۆنەها پەیوەندی و پاکێتی کوشندەی هەیە.\n\n"
-            f"⚡️ **تەنها بۆ خاوەن `@ALONE427` کار دەکات!**"
+            "⚡️ **تەنها بۆ خاوەن `@ALONE427` کار دەکات!**"
         )
         await query.message.reply_text(about_text)
 
     elif query.data == "start_attack_menu":
-        if not username or username.lower() != OWNER_USERNAME.lower():
-            await query.message.reply_text("💀 تۆ ڕێگەپێدراو نییت! تەنها `@ALONE427` دەتوانێت هێرش ئەنجام بدات.")
+        if user_id != OWNER_ID:
+            await query.message.reply_text("💀 تۆ ڕێگەپێدراو نییت! تەنها خاوەنی فەرمی دەتوانێت هێرش ئەنجام بدات.")
             return
-        user_states[user.id] = "waiting_ip_port"
+        user_states[user_id] = "waiting_ip_port"
         await query.message.reply_text(
             "🎯 **ئامادەکاری بۆ هێرش:**\n\n"
             "تکایە IP و Port سێرڤەری ماینکرافتەکە بنووسە بەم شێوازە:\n"
@@ -74,13 +74,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global attack_active, attack_stats
-    user = update.effective_user
-    username = user.username
+    user_id = update.effective_user.id
     
-    if not username or username.lower() != OWNER_USERNAME.lower():
+    if user_id != OWNER_ID:
         return
 
-    if user_states.get(user.id) == "waiting_ip_port":
+    if user_states.get(user_id) == "waiting_ip_port":
         text = update.message.text.strip()
         parts = text.split()
         if len(parts) < 2:
@@ -89,7 +88,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         ip = parts[0]
         port = parts[1]
-        user_states[user.id] = None
+        user_states[user_id] = None
 
         attack_active = True
         attack_stats = {"success": 0, "failed": 0}
@@ -110,16 +109,14 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def stop_attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global attack_active
-    user = update.effective_user
-    if not user.username or user.username.lower() != OWNER_USERNAME.lower():
+    if update.effective_user.id != OWNER_ID:
         return
     
     attack_active = False
     await update.message.reply_text("⏹ **هێرشەکە بە سەرکەوتوویی ڕاگیرا و مەکینە سارد کرایەوە!**")
 
 async def attack_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    if not user.username or user.username.lower() != OWNER_USERNAME.lower():
+    if update.effective_user.id != OWNER_ID:
         return
     
     success = attack_stats["success"]
@@ -138,8 +135,8 @@ async def attack_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(status_text)
 
 def main():
-    if not TOKEN:
-        print("❌ هەڵە: توکنی بۆت نەدۆزراوەتەوە!")
+    if not TOKEN or not OWNER_ID:
+        print("❌ هەڵە: توکن یان ئایدی خاوەن نەدۆزراوەتەوە لە Secrets!")
         sys.exit(1)
         
     app = ApplicationBuilder().token(TOKEN).build()
