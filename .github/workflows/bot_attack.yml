@@ -3,7 +3,6 @@ name: ServerCrackerBot Runner
 on:
   push:
     branches: [ main ]
-  # لابردنی workflow_dispatch بە جۆرێک کە خۆکارانە یان بە تەنها داگیرساندن کار بکات
   workflow_dispatch:
 
 jobs:
@@ -25,5 +24,6 @@ jobs:
       - name: Run ServerCrackerBot
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          OWNER_ID: ${{ secrets.OWNER_ID }}
         run: |
           python bot_commander.py
